@@ -12,6 +12,7 @@ bl_info = {
 import bpy
 from bpy.props import StringProperty, BoolProperty
 from . import export_block_shape
+from . import import_block_shape
 
 # UI Panel
 
@@ -112,13 +113,17 @@ class TeraObjectPropUIPanel(bpy.types.Panel):
 def menu_export(self, context):
     self.layout.operator(export_block_shape.ExportToBlockShape.bl_idname, text="Terasology Block Shape (.shape)")
 
+def menu_import(self, context):
+    self.layout.operator(import_block_shape.ImportToBlockShape.bl_idname,text="Terasology Block Shape (.shape)")
 
 def register():
     bpy.utils.register_module(__name__)
     bpy.types.INFO_MT_file_export.append(menu_export)
+    bpy.types.INFO_MT_file_import.append(menu_import)
 
 
 def unregister():
     bpy.utils.unregister_module(__name__)
     bpy.types.INFO_MT_file_export.remove(menu_export)
+    bpy.types.INFO_MT_file_import.remove(menu_import)
 

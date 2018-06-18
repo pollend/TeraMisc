@@ -5,10 +5,10 @@ import bpy_extras.io_utils
 import json
 import datetime
 from mathutils import Vector
-
+from . import constants
 
 class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
-    bl_idname = "object.terasology_block_shape"
+    bl_idname = "export_scene.shape"
     bl_label = "Export Terasology Block Shape"
 
     filename_ext = ".shape"
@@ -40,8 +40,11 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         result['texcoords'] = []
         result['faces'] = []
 
+        temp_verts = []
         for v in mesh.vertices:
             result['vertices'].append([-v.co[0], v.co[2], v.co[1]])
+            result['normals'].append(None)
+            result['texcoords'].append(None)
 
         for i, face in enumerate(mesh.tessfaces):
             for j, index in enumerate(face.vertices):
@@ -54,8 +57,8 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
                     normal = tuple(vert.normal)
                 uvtemp = mesh.tessface_uv_textures.active.data[i].uv[j]
                 uvs = uvtemp[0], 1.0 - uvtemp[1]
-                result['normals'].append([-normal[0], normal[2], normal[1]])
-                result['texcoords'].append(uvs)
+                result['normals'][index] = [-normal[0], normal[2], normal[1]]
+                result['texcoords'][index] = uvs
             result['faces'].append([f for f in face.vertices])
 
         if apply_modifiers:
@@ -63,22 +66,23 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 
         return result
 
-    def AABBCollider(self, obj):
-        if not obj:
-            return
-        mesh = obj.data
+    def AABBCollider(self, objs):
+
         min = [100000.0, 100000.0, 100000.0]
         max = [-100000.0, -100000.0, -100000.0]
 
-        for faceNum, f in enumerate(mesh.faces):
-            faceVerts = f.vertices
-            for vertNum, index in enumerate(faceVerts):
-                vert = mesh.vertices[index].co
-                for i in range(3):
-                    if vert[i] > max[i]:
-                        max[i] = vert[i]
-                    elif vert[i] < min[i]:
-                        min[i] = vert[i]
+        for obj in objs:
+            if not obj:
+                return
+            mesh = obj.data
+            for face in mesh.faces:
+                for index in enumerate(face.vertices):
+                    vert = mesh.vertices[index].co
+                    for i in range(3):
+                        if vert[i] > max[i]:
+                            max[i] = vert[i]
+                        elif vert[i] < min[i]:
+                            min[i] = vert[i]
 
         pos = [0.0, 0.0, 0.0]
         dim = [0.0, 0.0, 0.0]
@@ -93,17 +97,20 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             'extents': [-dim[0], dim[2], dim[1]]
         }
 
-    def sphereCollider(self, obj):
-        mesh = obj.data
-        center = Vector((0, 0, 0))
+    def sphereCollider(self, objs):
 
-        for v in mesh.vertices:
-            center += v.co
-        center /= len(mesh.vertices)
+        center = Vector((0, 0, 0))
         radius = 0.0
-        for v in mesh.vertices:
-            dist = (center - v.co).length
-            radius = max(dist, radius)
+        for obj in objs:
+            if not obj:
+                return
+            mesh = obj.data
+            for v in mesh.vertices:
+                center += v.co
+            center /= len(mesh.vertices)
+            for v in mesh.vertices:
+                dist = (center - v.co).length
+                radius = max(dist, radius)
         return {
             'type': 'Sphere',
             'position': [-center[0], center[2], center[1]],
@@ -121,8 +128,7 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         result['exportDate'] = '{:%Y-%m-%d %H:%M:%S}'.format(now)
 
         bpy.ops.object.mode_set(mode='OBJECT')
-        parts = ["Center", "Top", "Bottom", "Front", "Back", "Left", "Right"]
-        for part in parts:
+        for part in constants.PARTS:
             if part in bpy.data.objects:
                 result[part.lower()] = self.meshify(bpy.data.objects[part], context.scene, self.apply_modifiers)
                 if ("teraFullSide" in bpy.data.objects[part]):
@@ -133,31 +139,8 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         hasColliders = False
         result['collision'] = {}
         if context.scene.teraCollisionType == "AutoAABB":
-            min = [100000.0, 100000.0, 100000.0]
-            max = [-100000.0, -100000.0, -100000.0]
-            for part in parts:
-                if part in bpy.data.objects:
-                    mesh = bpy.data.objects[part].data
-                    for faceNum, f in enumerate(mesh.faces):
-                        faceVerts = f.vertices
-                        for vertNum, index in enumerate(faceVerts):
-                            vert = mesh.vertices[index].co
-                            for i in range(3):
-                                if vert[i] > max[i]:
-                                    max[i] = vert[i]
-                                elif vert[i] < min[i]:
-                                    min[i] = vert[i]
-            pos = [0.0, 0.0, 0.0]
-            dim = [0.0, 0.0, 0.0]
-            for i in range(3):
-                pos[i] = 0.5 * (max[i] + min[i])
-                dim[i] = 0.5 * (max[i] - min[i])
             hasColliders = True
-            result['collision']['colliders'] = [{
-                'type': 'AABB',
-                'position': [-pos[0], pos[2], pos[1]],
-                'extents': [-dim[0], dim[2], dim[1]]
-            }]
+            result['collision']['colliders'] = [self.AABBCollider([o for o in bpy.data.objects if o.name in constants.PARTS])]
         elif context.scene.teraCollisionType == "ConvexHull":
             result['collision']['convexHull'] = True
             hasColliders = True
@@ -167,9 +150,9 @@ class ExportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             for object in bpy.data.objects:
                 if object.teraColliderType != '' and object.teraColliderType == 'None':
                     if object.teraColliderType == 'AABB':
-                        result['collision']['colliders'].append(self.AABBCollider(object))
+                        result['collision']['colliders'].append(self.AABBCollider([object]))
                     elif object.teraColliderType == 'Sphere':
-                        result['collision']['colliders'].append(self.sphereCollider(object))
+                        result['collision']['colliders'].append(self.sphereCollider([object]))
 
         if (hasColliders == True):
             result['collision']["symmetric"] = context.scene.teraCollisionSymmetric

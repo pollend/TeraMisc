@@ -14,8 +14,6 @@ class ImportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     filename_ext = ".shape"
 
-    def create_AABB
-
     def execute(self, context):
         path = bpy.path.ensure_ext(self.filepath, self.filename_ext)
 
@@ -28,18 +26,15 @@ class ImportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         file = open(path)
         payload = json.loads(file.read())
 
-        context.scene.teraDisplayName = payload['displayName']
-        context.scene.teraAuthor = payload['author']
+        if 'displayName' in payload:
+            context.scene.teraDisplayName = payload['displayName']
+        if 'author' in payload:
+            context.scene.teraAuthor = payload['author']
 
 
         for part in constants.PARTS:
             if(part.lower() in payload):
                 sub_payload = payload[part.lower()]
-
-                if 'fullSide' in  sub_payload:
-                    bpy.data.objects[part].teraFullSide = sub_payload['fullSide']
-                else:
-                    bpy.data.objects[part].teraFullSide = False
 
                 bm = bmesh.new()
                 verticies = []
@@ -63,6 +58,12 @@ class ImportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
                 object = bpy.data.objects.new(part.capitalize(),mesh)
                 bpy.context.scene.objects.link(object)
                 bm.free()
+
+                if 'fullSide' in  sub_payload:
+                    bpy.data.objects[part.capitalize()].teraFullSide = sub_payload['fullSide']
+                else:
+                    bpy.data.objects[part.capitalize()].teraFullSide = False
+
 
         payload_collision = None
         if 'collision' in payload:
@@ -99,10 +100,5 @@ class ImportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
                             bpy.context.scene.objects.active = obj
                             bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
                             obj.select = False
-
-
-
-
-
 
         return {'FINISHED'}

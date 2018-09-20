@@ -86,19 +86,17 @@ class ImportToBlockShape(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
                         if(collider['type'] == 'AABB'):
                             p = collider['position']
                             e = collider['extents']
-                            obj = bpy.ops.mesh.primitive_cube_add(location=(-p[0], p[1], p[2]))
-                            obj.scale = (-e[0],e[1],e[2])
-                            obj.select = True
-                            bpy.context.scene.objects.active = obj
+                            bpy.ops.mesh.primitive_cube_add(location=(-p[0], p[1], p[2]))
+                            bpy.ops.transform.resize(value=(-e[0], e[1], e[2]))
                             bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
-                            obj.select = False
+                            obj = bpy.context.object
+                            obj['teraColliderType'] = collider['type']
                         elif collider['type'] == 'Sphere':
                             p = collider['position']
                             r = collider['radius']
-                            obj =  bpy.ops.mesh.primitive_uv_sphere_add(segments=16,location = (-p[0], p[1], p[2]),size = r)
-                            obj.select = True
-                            bpy.context.scene.objects.active = obj
+                            bpy.ops.mesh.primitive_uv_sphere_add(segments=16,location = (-p[0], p[1], p[2]),size = r)
                             bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
-                            obj.select = False
+                            obj = bpy.context.object
+                            obj['teraColliderType'] = collider['type']
 
         return {'FINISHED'}
